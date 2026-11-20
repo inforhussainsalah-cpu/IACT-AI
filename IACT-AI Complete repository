@@ -1,0 +1,15 @@
+README.md
+INSTALL.md
+requirements.txt
+.env.example
+.gitignore
+Dockerfile
+docker-compose.yml
+Makefile
+IACT_AI_v0.1_spec.json
+IACT_AI_API_Contracts_v0.1.yaml
+
+app/
+tests/
+data/
+.github/
