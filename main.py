@@ -32,7 +32,7 @@ def call_gemini(full_prompt: str, file_bytes: bytes = None, mime_type: str = Non
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY ސެޓްކުރެވިފައެއް ނެތެވެ."
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
     parts = [{"text": full_prompt}]
 
     if file_bytes and mime_type:
@@ -153,7 +153,7 @@ async def run_iact(
         gem_text, gem_err = call_gemini(full_prompt, file_bytes, mime_type)
         if gem_text:
             ai_text = gem_text
-            engine_used = "Gemini 2.5 Flash"
+            engine_used = "Gemini 3.8 Flash"
         else:
             ai_text = f"❌ Gemini މައްސަލަ: {gem_err}"
             engine_used = "Error"
@@ -162,7 +162,7 @@ async def run_iact(
         gem_text, gem_err = call_gemini(full_prompt, file_bytes, mime_type)
         if gem_text:
             ai_text = gem_text
-            engine_used = "Gemini 2.5 Flash"
+            engine_used = "Gemini 3.8 Flash"
         elif file_bytes:
             ai_text = f"❌ ފައިލް ކިޔުމުގައި މައްސަލައެއް ދިމާވެއްޖެ: {gem_err}"
             engine_used = "Error"
@@ -366,7 +366,7 @@ def render_page(
         <label for="provider">🤖 އޭއައި އިންޖީނު ޚިޔާރުކުރައްވާ:</label>
         <select id="provider" name="provider">
             <option value="auto" {"selected" if provider=="auto" else ""}>Auto (Gemini + Groq Backup)</option>
-            <option value="gemini" {"selected" if provider=="gemini" else ""}>Gemini 2.5 Flash</option>
+            <option value="gemini" {"selected" if provider=="gemini" else ""}>Gemini 3.8 Flash</option>
             <option value="groq" {"selected" if provider=="groq" else ""}>Groq (Llama 3.3 70B)</option>
         </select>
 
