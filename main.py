@@ -91,6 +91,7 @@ def home():
 async def run_iact(
     prompt: str = Form(""),
     sender_info: str = Form(""),
+    provider: str = Form("auto"),
     evidence: str = Form("E0"),
     permission: str = Form("L0"),
     upload_file: UploadFile = File(None)
@@ -102,6 +103,7 @@ async def run_iact(
         return render_page(
             prompt=prompt,
             sender_info=sender_info,
+            provider=provider,
             evidence=evidence,
             permission=permission,
             output=f"⚠️ ހުއްދަ މަނާކުރެވިއްޖެ: {permission} ހިންގުމަށް މަދުވެގެން {permission.replace('L', 'E')} ފެންވަރުގެ ހެކި ބޭނުންވެއެވެ.",
@@ -121,6 +123,7 @@ async def run_iact(
         return render_page(
             prompt=prompt,
             sender_info=sender_info,
+            provider=provider,
             evidence=evidence,
             permission=permission,
             output="⚠️ ސުވާލެއް ލިޔުއްވާ، އަޑުން ވާހަކަދައްކަވާ، ނުވަތަ ފޮޓޯއެއް/PDF އެއް އަޕްލޯޑްކުރައްވާށެވެ.",
@@ -130,12 +133,38 @@ async def run_iact(
     effective_prompt = prompt.strip() if prompt.strip() else "މި ފައިލްގައިވާ މަޢުލޫމާތު ތަފްޞީލުކޮށް ދިވެހި ބަހުން ކިޔައިދީ، މުހިންމު ނުކުތާތައް ފާހަގަކޮށްދޭށެވެ."
     full_prompt = build_full_prompt(effective_prompt, sender_info)
 
-    ai_text, gemini_err = call_gemini(full_prompt, file_bytes, mime_type)
-    engine_used = "Gemini 2.5 Flash"
+    ai_text = None
+    engine_used = "Error"
 
-    if not ai_text:
+    if provider == "groq":
         if file_bytes:
-            ai_text = f"❌ ފައިލް ކިޔުމުގައި މައްސަލައެއް ދިމާވެއްޖެ: {gemini_err}"
+            ai_text = "⚠️ Groq (Llama-3.3) އިން ސީދާ ފައިލް/ފޮޓޯ ކިޔުމުގެ ބަދަލުގައި ލިޔުން/ސުވާލު ބޭނުންކުރައްވާ، ނުވަތަ Gemini ޚިޔާރުކުރައްވާށެވެ."
+            engine_used = "Groq Llama-3.3"
+        else:
+            groq_text, groq_err = call_groq(full_prompt)
+            if groq_text:
+                ai_text = groq_text
+                engine_used = "Groq Llama-3.3"
+            else:
+                ai_text = f"❌ Groq މައްސަލަ: {groq_err}"
+                engine_used = "Error"
+
+    elif provider == "gemini":
+        gem_text, gem_err = call_gemini(full_prompt, file_bytes, mime_type)
+        if gem_text:
+            ai_text = gem_text
+            engine_used = "Gemini 2.5 Flash"
+        else:
+            ai_text = f"❌ Gemini މައްސަލަ: {gem_err}"
+            engine_used = "Error"
+
+    else:  # auto (Gemini first, Groq backup for text)
+        gem_text, gem_err = call_gemini(full_prompt, file_bytes, mime_type)
+        if gem_text:
+            ai_text = gem_text
+            engine_used = "Gemini 2.5 Flash"
+        elif file_bytes:
+            ai_text = f"❌ ފައިލް ކިޔުމުގައި މައްސަލައެއް ދިމާވެއްޖެ: {gem_err}"
             engine_used = "Error"
         else:
             groq_text, groq_err = call_groq(full_prompt)
@@ -143,13 +172,14 @@ async def run_iact(
                 ai_text = groq_text
                 engine_used = "Groq Llama-3.3 (Backup)"
             else:
-                ai_text = f"❌ ސިސްޓަމް މައްސަލަ:\nGemini: {gemini_err}\nGroq: {groq_err}"
+                ai_text = f"❌ ސިސްޓަމް މައްސަލަ:\nGemini: {gem_err}\nGroq: {groq_err}"
                 engine_used = "Error"
 
     header_info = f"✅ ސްޓޭޓަސް: ALLOWED ({evidence} / {permission}) | އިންޖީނު: {engine_used}{file_note}\n" + ("—" * 32) + "\n\n"
     return render_page(
         prompt=prompt,
         sender_info=sender_info,
+        provider=provider,
         evidence=evidence,
         permission=permission,
         output=header_info + ai_text,
@@ -161,6 +191,7 @@ async def run_iact(
 def render_page(
     prompt: str = "",
     sender_info: str = "",
+    provider: str = "auto",
     evidence: str = "E0",
     permission: str = "L0",
     output: str = "",
@@ -177,7 +208,7 @@ def render_page(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IACT-AI + Gemini (ދިވެހި އިންޓެލިޖެންސް)</title>
+    <title>IACT-AI + Gemini &amp; Groq (ދިވެހި އިންޓެލިޖެންސް)</title>
     <style>
         body {{
             background-color: #0b1120;
@@ -199,7 +230,7 @@ def render_page(
         }}
         h1 {{
             text-align: center;
-            font-size: 1.45rem;
+            font-size: 1.4rem;
             margin-top: 0;
             color: #ffffff;
         }}
@@ -329,9 +360,16 @@ def render_page(
 </head>
 <body>
 <div class="container">
-    <h1>🧠 IACT-AI + Gemini (ދިވެހި އިންޓެލިޖެންސް)</h1>
+    <h1>🧠 IACT-AI + Gemini &amp; Groq</h1>
 
     <form action="/run" method="post" enctype="multipart/form-data">
+        <label for="provider">🤖 އޭއައި އިންޖީނު ޚިޔާރުކުރައްވާ:</label>
+        <select id="provider" name="provider">
+            <option value="auto" {"selected" if provider=="auto" else ""}>Auto (Gemini + Groq Backup)</option>
+            <option value="gemini" {"selected" if provider=="gemini" else ""}>Gemini 2.5 Flash</option>
+            <option value="groq" {"selected" if provider=="groq" else ""}>Groq (Llama 3.3 70B)</option>
+        </select>
+
         <label for="prompt">ސުވާލު ނުވަތަ ދިރާސާ މައުޟޫޢު ލިޔުއްވާ:</label>
         <textarea id="prompt" name="prompt" rows="4" placeholder="މިތަނުގައި ތާނައިން ނުވަތަ އިނގިރޭސިން ލިޔުއްވާ...">{safe_prompt}</textarea>
 
@@ -371,7 +409,7 @@ def render_page(
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">🚀 IACT-AI + Gemini ހިންގާލާ</button>
+        <button type="submit" class="btn btn-primary">🚀 IACT-AI ހިންގާލާ</button>
     </form>
 
     {f'''
